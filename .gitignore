@@ -1,11 +1,21 @@
+* Folders
+Binary/
+Build/
+
 # Prerequisites
 *.d
+
+# Generated project files
+*.sln
+*.vcxproj
+*.filters
 
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
+*.pdb
 
 # Precompiled Headers
 *.gch

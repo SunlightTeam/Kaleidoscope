@@ -1,0 +1,5 @@
+GLM 0.9.9.8
+https://glm.g-truc.net
+
+Source code and header files only.
+TODO: using source code and intergarte with CMake.

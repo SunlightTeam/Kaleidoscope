@@ -1,0 +1,5 @@
+GLFW 3.3.2
+https://www.glfw.org/
+
+Windows pre-compiled binaries 64-bit Windows binaries.
+TODO: using source code and intergarte with CMake.

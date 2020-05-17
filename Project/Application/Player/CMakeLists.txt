@@ -1,0 +1,22 @@
+set(CUR_TARGET_NAME "Player")
+set(CUR_PROJECT_SOURCE_CODE_ROOT "${PROJECT_SOURCE_CODE_ROOT}/Application/Player")
+
+FILE(GLOB_RECURSE TARGET_SOURCE_FILE_LIST ${CUR_PROJECT_SOURCE_CODE_ROOT}/*.cpp)
+FILE(GLOB_RECURSE TARGET_HEADER_FILE_LIST ${CUR_PROJECT_SOURCE_CODE_ROOT}/*.h)
+
+
+add_executable(${CUR_TARGET_NAME} ${TARGET_SOURCE_FILE_LIST} ${TARGET_HEADER_FILE_LIST})
+set_target_properties(${CUR_TARGET_NAME} PROPERTIES FOLDER "Application")
+set_target_properties(${CUR_TARGET_NAME} PROPERTIES DEBUG_POSTFIX "_D")
+source_group(TREE ${CUR_PROJECT_SOURCE_CODE_ROOT} PREFIX "Src" FILES ${TARGET_SOURCE_FILE_LIST})
+source_group(TREE ${CUR_PROJECT_SOURCE_CODE_ROOT} PREFIX "Inc" FILES ${TARGET_HEADER_FILE_LIST})
+target_include_directories(${CUR_TARGET_NAME} 
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/GLFW/Include
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/GLM/Include
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Include)
+target_link_libraries(${CUR_TARGET_NAME} 
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/GLFW/Library/glfw3dll.lib
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/vulkan-1.lib
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/VkLayer_utils.lib
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/shaderc_combined.lib)
+#target_compile_features(${CUR_TARGET_NAME} PUBLIC cxx_std_11)
