@@ -1,6 +1,7 @@
 * Folders
 Binary/
 Build/
+Source/Third-Party/DXC/
 
 # Prerequisites
 *.d

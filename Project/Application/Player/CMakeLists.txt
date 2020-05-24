@@ -17,11 +17,11 @@ target_include_directories(${CUR_TARGET_NAME}
 target_link_libraries(${CUR_TARGET_NAME} 
     PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/GLFW/Library/glfw3dll.lib
     PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/vulkan-1.lib
-    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/VkLayer_utils.lib
-    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/shaderc_combined.lib)
-#target_compile_features(${CUR_TARGET_NAME} PUBLIC cxx_std_11)
+    PUBLIC ${PROJECT_SOURCE_CODE_ROOT}/Third-Party/Vulkan/Library/VkLayer_utils.lib)
 
 target_precompile_headers(${CUR_TARGET_NAME} PRIVATE "${CUR_PROJECT_SOURCE_CODE_ROOT}/PlayerPrivate.h")
 set(CUR_PRECOMPILE_HEADER_CODE_ROOT "${PROJECT_BUILD_ROOT}/Application/Player/CMakeFIles/Player.dir")
 FILE(GLOB_RECURSE TARGET_PRECOMPILE_HEADER_FILE_LIST ${CUR_PRECOMPILE_HEADER_CODE_ROOT}/*.*)
 source_group(TREE ${CUR_PRECOMPILE_HEADER_CODE_ROOT} PREFIX "Pch" FILES ${TARGET_PRECOMPILE_HEADER_FILE_LIST})
+
+target_compile_features(${CUR_TARGET_NAME} PUBLIC cxx_std_17)

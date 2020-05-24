@@ -1,0 +1,2 @@
+%~dp0../Binary/glslc.exe ./Engine/ShaderSource/sample.shader.vert --target-env=vulkan -g -c -o %~dp0../Data/Engine/sample.vs.spv  -fshader-stage=vertex -fentry-point=Vs_Main -DSTAGE=VERTEX_STAGE
+%~dp0../Binary/glslc.exe ./Engine/ShaderSource/sample.shader.frag --target-env=vulkan -g -c -o %~dp0../Data/Engine/sample.fs.spv  -fshader-stage=fragment -fentry-point=Ps_Main -DSTAGE=FRAGMENT_STAGE

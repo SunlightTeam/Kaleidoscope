@@ -29,9 +29,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${PROJECT_BUILD_ROOT}/Lib/Release")
 set(CMAKE_DEBUG_POSTFIX "_D")
 
 
-if (WIN32)
-add_definitions(-DUNICODE -D_UNICODE)
-endif()
+#if (WIN32)
+#add_definitions(-DUNICODE -D_UNICODE)
+#endif()
 
 
 #add_subdirectory("Third-Party")
