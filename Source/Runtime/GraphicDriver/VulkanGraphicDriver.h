@@ -1,10 +1,25 @@
 #pragma once
 
 
-#include "GraphicDriverError.h"
-
-
 class GLFWwindow;
+
+
+__BEGIN_NAMESPACE
+
+
+typedef struct GraphicInitialInfo {
+	GLFWwindow* m_Window;
+	int         m_Width;
+	int         m_Height;
+} GraphicInitialInfo;
+
+typedef struct GraphicResizeInfo {
+	int         m_OldWidth;
+	int         m_OldHeight;
+	int         m_NewWidth;
+	int         m_NewHeight;
+} GraphicResizeInfo;
+
 
 class VulkanGraphicDriver
 {
@@ -12,11 +27,11 @@ public:
 	VulkanGraphicDriver();
 	virtual ~VulkanGraphicDriver();
 
-	virtual GraphicDriverErrorCode Initial();
-	virtual GraphicDriverErrorCode StartUp(GLFWwindow* window);
-	virtual GraphicDriverErrorCode DrawFrame();
-	virtual GraphicDriverErrorCode ResizeWindow();
-	virtual GraphicDriverErrorCode ShutDown();
+	virtual bool Initial();
+	virtual bool StartUp(const GraphicInitialInfo& initialInfo);
+	virtual bool DrawFrame();
+	virtual bool ResizeWindow(const GraphicResizeInfo& resizeInfo);
+	virtual bool ShutDown();
 	virtual void CleanUp();
 
 private:
@@ -49,17 +64,17 @@ private:
 	std::vector<VkFence>              m_InFlightFences;
 	std::vector<VkFence>              m_InFlightImageFences;
 	size_t                            m_CurrentFrame;
+	bool                              m_SkipFrame;
 
-	GraphicDriverErrorCode CreateSwapChain();
-	GraphicDriverErrorCode CreateShaderAndPipeline();
-	GraphicDriverErrorCode CreateFrameBuffers();
-	GraphicDriverErrorCode CreateCommandBuffers();	
-	GraphicDriverErrorCode DestroyCommandBuffers();
-	GraphicDriverErrorCode DestroyFrameBuffers();
-	GraphicDriverErrorCode DestroyShaderAndPipeline();		
-	GraphicDriverErrorCode DestroySwapChain();
+	bool CreateSwapChain(uint32_t width, uint32_t height);
+	bool CreateShaderAndPipeline();
+	bool CreateFrameBuffers();
+	bool CreateCommandBuffers();	
+	bool DestroyCommandBuffers();
+	bool DestroyFrameBuffers();
+	bool DestroyShaderAndPipeline();		
+	bool DestroySwapChain();
 };
 
 
-
-
+__END_NAMESPACE

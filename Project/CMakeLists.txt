@@ -35,7 +35,10 @@ set(CMAKE_DEBUG_POSTFIX "_D")
 
 
 #add_subdirectory("Third-Party")
-#add_subdirectory("Library")
-#add_subdirectory("Runtime")
+add_subdirectory("Runtime")
 #add_subdirectory("Framework")
 add_subdirectory("Application")
+
+
+add_dependencies(GraphicDriver CrossPlatform)
+add_dependencies(Player GraphicDriver)

@@ -1,13 +1,16 @@
 #pragma once
 
 
-enum class GraphicDriverErrorCode
+__BEGIN_NAMESPACE
+
+
+enum class ErrorCode
 {
-	OK                                                       = 0,
-	UnKnow                                                   = -1,
+	OK = 0,
+	UnKnow = -1,
 
 	// Vulkan special error
-	Vulkan_Invalid_Instance                                  = -19999,
+	Vulkan_Invalid_Instance = -19999,
 	Vulkan_Invalid_WindowSurface,
 	Vulkan_No_PhysicalDevice,
 	Vulkan_Invalid_PhysicalDevice,
@@ -20,3 +23,8 @@ enum class GraphicDriverErrorCode
 	Vulkan_InvalidSwapChainImageView,
 	Vulkan_Invalid_CommandPool,
 };
+
+void SetErrorCode(ErrorCode err);
+ErrorCode GetLastErrorCode();
+
+__END_NAMESPACE

@@ -3,7 +3,7 @@
 
 int main()
 {
-    WindowsApplication app;
+    __NAMESPACE::WindowsApplication app;
     app.Run();
     return 0;
 }

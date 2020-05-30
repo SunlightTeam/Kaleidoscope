@@ -3,6 +3,9 @@
 #include "WindowsApplication.h"
 
 
+__BEGIN_NAMESPACE
+
+
 static const uint32_t WIDTH = 1024;
 static const uint32_t HEIGHT = 768;
 
@@ -10,7 +13,9 @@ static const uint32_t HEIGHT = 768;
 WindowsApplication::WindowsApplication() :
     m_MainWindow(nullptr),
     m_GraphicDriver(nullptr),
-    m_WindowResized(false)
+    m_WindowResized(false),
+    m_CurrentWidth(-1),
+    m_CurrentHeight(-1)
 {
 }
 
@@ -20,11 +25,11 @@ WindowsApplication::~WindowsApplication()
 
 void WindowsApplication::Run()
 {
-    if (Initial() < 0) {
+    if (!Initial()) {
         return;
     }
 
-    if (StartUp() < 0) {
+    if (!StartUp()) {
         return;
     }
 
@@ -34,11 +39,13 @@ void WindowsApplication::Run()
     CleanUp();
 }
 
-int WindowsApplication::Initial()
+bool WindowsApplication::Initial()
 {
     m_GraphicDriver = new VulkanGraphicDriver();
-    m_GraphicDriver->Initial();
-    return 0;
+    if (!m_GraphicDriver->Initial()) {
+        return false;
+    }
+    return true;
 }
 
 
@@ -47,26 +54,30 @@ static void framebufferResizeCallback(GLFWwindow* window, int width, int height)
     app->SetWindowResized(true);
 }
 
-int WindowsApplication::StartUp()
+bool WindowsApplication::StartUp()
 {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     //glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     m_MainWindow = glfwCreateWindow(WIDTH, HEIGHT, "Main window", nullptr, nullptr);
+    glfwSetWindowUserPointer(m_MainWindow, this);
     glfwSetFramebufferSizeCallback(m_MainWindow, framebufferResizeCallback);
+    m_CurrentWidth = WIDTH;
+    m_CurrentHeight = HEIGHT;
 
-    GraphicDriverErrorCode graphicErrorCode = m_GraphicDriver->StartUp(m_MainWindow);
-    if (GraphicDriverErrorCode::OK!=graphicErrorCode)
+    GraphicInitialInfo graphicInitialInfo;
+    graphicInitialInfo.m_Window = m_MainWindow;
+    if (!m_GraphicDriver->StartUp(graphicInitialInfo))
     {
-        return -1;
+        return false;
     }
 
-    return 0;
+    return true;
 }
 
 
-int WindowsApplication::MainLoop()
+bool WindowsApplication::MainLoop()
 {
     while (!glfwWindowShouldClose(m_MainWindow)) {
         glfwPollEvents();
@@ -78,7 +89,7 @@ int WindowsApplication::MainLoop()
             DrawFrame();
         }
     }    
-    return 0;
+    return true;
 }
 
 void WindowsApplication::DrawFrame()
@@ -88,10 +99,21 @@ void WindowsApplication::DrawFrame()
 
 void WindowsApplication::ResizeWindow()
 {
-    m_GraphicDriver->ResizeWindow();
+    GraphicResizeInfo graphicResizeInfo;
+    graphicResizeInfo.m_OldWidth = m_CurrentWidth;
+    graphicResizeInfo.m_OldHeight = m_CurrentHeight;
+
+    int width, height;
+    glfwGetFramebufferSize(m_MainWindow, &width, &height);
+    graphicResizeInfo.m_NewWidth = (uint32_t)width;
+    graphicResizeInfo.m_NewHeight = (uint32_t)height;
+    m_CurrentWidth = width;
+    m_CurrentHeight = height;
+
+    m_GraphicDriver->ResizeWindow(graphicResizeInfo);
 }
 
-int WindowsApplication::ShutDown()
+bool WindowsApplication::ShutDown()
 {
     m_GraphicDriver->ShutDown();
 
@@ -99,7 +121,7 @@ int WindowsApplication::ShutDown()
     m_MainWindow = nullptr;
 
     glfwTerminate();
-    return 0;
+    return true;
 }
 
 void WindowsApplication::CleanUp()
@@ -107,3 +129,6 @@ void WindowsApplication::CleanUp()
     m_GraphicDriver->CleanUp();
     m_GraphicDriver = nullptr;
 }
+
+
+__END_NAMESPACE

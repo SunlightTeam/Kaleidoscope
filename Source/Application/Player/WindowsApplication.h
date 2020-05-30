@@ -2,6 +2,11 @@
 
 
 class GLFWwindow;
+
+
+__BEGIN_NAMESPACE
+
+
 class VulkanGraphicDriver;
 
 
@@ -16,12 +21,12 @@ public:
 	void SetWindowResized(bool resized) { m_WindowResized = resized; }
 
 private:
-	virtual int Initial();
-	virtual int StartUp();
-	virtual int MainLoop();
+	virtual bool Initial();
+	virtual bool StartUp();
+	virtual bool MainLoop();
 	virtual void DrawFrame();
 	virtual void ResizeWindow();
-	virtual int ShutDown();
+	virtual bool ShutDown();
 	virtual void CleanUp();
 
 	/**
@@ -30,10 +35,15 @@ private:
 
 	GLFWwindow*               m_MainWindow;
 	bool                      m_WindowResized;
+	int                       m_CurrentWidth;
+	int                       m_CurrentHeight;
 	 
 	/**
 	 *  Vulkan
 	 */
 	VulkanGraphicDriver*      m_GraphicDriver;
 };
+
+
+__END_NAMESPACE
 

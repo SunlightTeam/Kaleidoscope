@@ -2,14 +2,15 @@
 #include "VulkanGraphicDriver.h"
 
 
+__BEGIN_NAMESPACE
 
 static const size_t MAX_FRAMES_IN_FLIGHT = 2;
 static const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation"};
 static const bool enableValidationLayers = true; 
 
-#define VULKAN_DRIVER_CHECK_FUN(fun) {GraphicDriverErrorCode errorCode = fun; \
-if (GraphicDriverErrorCode::OK != errorCode) { \
-    return errorCode; \
+#define VULKAN_DRIVER_CHECK_FUN(fun) {bool ok = fun; \
+if (!ok) { \
+    return false; \
 }}
 
 static bool CheckValidationLayerSupport()
@@ -85,14 +86,14 @@ VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR>& avai
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, uint32_t w, uint32_t h)
 {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     }  
     std::cout << "No valid swapchain extend, using default width & height.\n";
 
-    VkExtent2D actualExtent = { 800, 600 };
+    VkExtent2D actualExtent = { w, h };
     actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
     actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
     return actualExtent;
@@ -155,7 +156,8 @@ VulkanGraphicDriver::VulkanGraphicDriver():
 	m_VulkanPipelineLayout(VK_NULL_HANDLE),
 	m_VulkanGraphicsPipeline(VK_NULL_HANDLE),
 	m_VulkanCommandPool(VK_NULL_HANDLE),
-	m_CurrentFrame(0)
+	m_CurrentFrame(0),
+    m_SkipFrame(false)
 {
     m_VulkanSurfaceFormat.format = VK_FORMAT_B8G8R8A8_SRGB;
     m_VulkanSurfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
@@ -168,16 +170,19 @@ VulkanGraphicDriver::~VulkanGraphicDriver()
 
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::Initial()
+bool VulkanGraphicDriver::Initial()
 {
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
 /****************************************************************************
  * Create swapchain
  ****************************************************************************/
-GraphicDriverErrorCode VulkanGraphicDriver::CreateSwapChain()
+bool VulkanGraphicDriver::CreateSwapChain(uint32_t width, uint32_t height)
 {
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_VulkanPhysicalDevice, m_VulkanWindowSurface, &m_SurfaceCapabilities);
+    m_VulkanSwapExtent = ChooseSwapExtent(m_SurfaceCapabilities, width, height);
+
     uint32_t imageCount = m_SurfaceCapabilities.minImageCount + 1;
     if (m_SurfaceCapabilities.maxImageCount > 0 && imageCount > m_SurfaceCapabilities.maxImageCount) {
         imageCount = m_SurfaceCapabilities.maxImageCount;
@@ -212,7 +217,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateSwapChain()
 
     if (vkCreateSwapchainKHR(m_VulkanLogicDevice, &createInfo, nullptr, &m_VulkanSwapChain) != VK_SUCCESS) {
         std::cout << "Failed to create Vulkan swap chain.\n";
-        return GraphicDriverErrorCode::Vulkan_Invalid_SwapChain;
+        SetErrorCode(ErrorCode::Vulkan_Invalid_SwapChain);
+        return false;
     }
 
     vkGetSwapchainImagesKHR(m_VulkanLogicDevice, m_VulkanSwapChain, &imageCount, nullptr);
@@ -238,16 +244,17 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateSwapChain()
 
         if (vkCreateImageView(m_VulkanLogicDevice, &createInfo, nullptr, &m_VulkanSwapChainImageViews[i]) != VK_SUCCESS) {
             std::cout << "Failed to create vulkan swapchain image views.\n";
-            return GraphicDriverErrorCode::Vulkan_InvalidSwapChainImageView;
+            SetErrorCode(ErrorCode::Vulkan_InvalidSwapChainImageView);
+            return false;
         }
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
 /****************************************************************************
  * Create shader and pipeline
  ****************************************************************************/
-GraphicDriverErrorCode VulkanGraphicDriver::CreateShaderAndPipeline()
+bool VulkanGraphicDriver::CreateShaderAndPipeline()
 {
     std::vector<char> vertShaderCode;
     std::string curExePath = CurExePath();
@@ -369,7 +376,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateShaderAndPipeline()
 
     if (vkCreatePipelineLayout(m_VulkanLogicDevice, &pipelineLayoutInfo, nullptr, &m_VulkanPipelineLayout) != VK_SUCCESS) {
         std::cout << "Vulkan failed to create pipeline layout.\n";
-        return GraphicDriverErrorCode::UnKnow;
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
     }
 
     VkAttachmentDescription colorAttachment{};
@@ -411,7 +419,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateShaderAndPipeline()
 
     if (vkCreateRenderPass(m_VulkanLogicDevice, &renderPassInfo, nullptr, &m_VulkanRenderPass) != VK_SUCCESS) {
         std::cout << "Vulkan failed to create render pass.\n";
-        return GraphicDriverErrorCode::UnKnow;
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
     }
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -434,18 +443,19 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateShaderAndPipeline()
 
     if (vkCreateGraphicsPipelines(m_VulkanLogicDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_VulkanGraphicsPipeline) != VK_SUCCESS) {
         std::cout << "Vulkan failed to create graphics pipeline.\n";
-        return GraphicDriverErrorCode::UnKnow;
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
     }
 
     vkDestroyShaderModule(m_VulkanLogicDevice, fragShaderModule, nullptr);
     vkDestroyShaderModule(m_VulkanLogicDevice, vertShaderModule, nullptr);
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
 /****************************************************************************
  * Create framebuffers
  ****************************************************************************/
-GraphicDriverErrorCode VulkanGraphicDriver::CreateFrameBuffers()
+bool VulkanGraphicDriver::CreateFrameBuffers()
 {
     m_VulkanSwapChainFramebuffers.resize(m_VulkanSwapChainImageViews.size());
     for (size_t i = 0; i < m_VulkanSwapChainImageViews.size(); i++) {
@@ -462,16 +472,17 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateFrameBuffers()
 
         if (vkCreateFramebuffer(m_VulkanLogicDevice, &framebufferInfo, nullptr, &m_VulkanSwapChainFramebuffers[i]) != VK_SUCCESS) {
             std::cout << "Vulkan failed to create framebuffer.\n";
-            return GraphicDriverErrorCode::UnKnow;
+            SetErrorCode(ErrorCode::UnKnow);
+            return false;
         }
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
 /****************************************************************************
 * Create command buffers
 ****************************************************************************/
-GraphicDriverErrorCode VulkanGraphicDriver::CreateCommandBuffers()
+bool VulkanGraphicDriver::CreateCommandBuffers()
 {
     m_VulkanCommandBuffers.resize(m_VulkanSwapChainFramebuffers.size());
 
@@ -483,7 +494,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateCommandBuffers()
 
     if (vkAllocateCommandBuffers(m_VulkanLogicDevice, &allocInfo, m_VulkanCommandBuffers.data()) != VK_SUCCESS) {
         std::cout << "Vulkan failed to allocate command buffers.\n";
-        return GraphicDriverErrorCode::UnKnow;
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
     }
 
     for (size_t i = 0; i < m_VulkanCommandBuffers.size(); i++) {
@@ -494,7 +506,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateCommandBuffers()
 
         if (vkBeginCommandBuffer(m_VulkanCommandBuffers[i], &beginInfo) != VK_SUCCESS) {
             std::cout << "Vulkan failed to begin recording command buffer.\n";
-            return GraphicDriverErrorCode::UnKnow;
+            SetErrorCode(ErrorCode::UnKnow);
+            return false;
         }
     }
 
@@ -518,17 +531,19 @@ GraphicDriverErrorCode VulkanGraphicDriver::CreateCommandBuffers()
 
         if (vkEndCommandBuffer(m_VulkanCommandBuffers[i]) != VK_SUCCESS) {
             std::cout << "Vulkan failed to record command buffer.\n";
-            return GraphicDriverErrorCode::UnKnow;
+            SetErrorCode(ErrorCode::UnKnow);
+            return false;
         }
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
+bool VulkanGraphicDriver::StartUp(const GraphicInitialInfo& initialInfo)
 {
-    if (nullptr == window) {
+    if (nullptr == initialInfo.m_Window) {
         std::cout << "Input window is null.";
-        return GraphicDriverErrorCode::UnKnow;
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
     }
 
     // enumerate all instance extension
@@ -581,13 +596,15 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
         if (VK_SUCCESS != result)
         {
             std::cout << "Vulkan instance creation failed.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_Instance;
+            SetErrorCode(ErrorCode::Vulkan_Invalid_Instance);
+            return false;
         }
     }
 
-    if (glfwCreateWindowSurface(m_VulkanInstance, window, nullptr, &m_VulkanWindowSurface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(m_VulkanInstance, initialInfo.m_Window, nullptr, &m_VulkanWindowSurface) != VK_SUCCESS) {
         std::cout << "Vulkan window surface creation failed.\n";
-        return GraphicDriverErrorCode::Vulkan_Invalid_WindowSurface;
+        SetErrorCode(ErrorCode::Vulkan_Invalid_WindowSurface);
+        return false;
     }
 
     /*******************************************************************************************
@@ -599,7 +616,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
         vkEnumeratePhysicalDevices(m_VulkanInstance, &deviceCount, nullptr);
         if (deviceCount <= 0) {
             std::cout << "Vulkan no physical device.\n";
-            return GraphicDriverErrorCode::Vulkan_No_PhysicalDevice;
+            SetErrorCode(ErrorCode::Vulkan_No_PhysicalDevice);
+            return false;
         }
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
@@ -633,7 +651,8 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
 
         if (VK_NULL_HANDLE == m_VulkanPhysicalDevice) {
             std::cout << "Vulkan no suitabel physical device.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_PhysicalDevice;
+            SetErrorCode(ErrorCode::Vulkan_Invalid_PhysicalDevice);
+            return false;
         }
 
         uint32_t queueFamilyCount = 0;
@@ -660,16 +679,16 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
 
         if ((UINT32_MAX == m_VulkanGraphicQueueFamilyID)) {
             std::cout << "Vulkan physical device doesn't have graphic queue family.\n";
-            return GraphicDriverErrorCode::Vulkan_No_GraphicQueueFamily;
+            SetErrorCode(ErrorCode::Vulkan_No_GraphicQueueFamily);
+            return false;
         }
 
         if ((UINT32_MAX == m_VulkanPresentQueueFamilyID))
         {
             std::cout << "Vulkan physical device doesn't have present queue family.\n";
-            return GraphicDriverErrorCode::Vulkan_No_PresentQueueFamily;
+            SetErrorCode(ErrorCode::Vulkan_No_PresentQueueFamily);
+            return false;
         }
-
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_VulkanPhysicalDevice, m_VulkanWindowSurface, &m_SurfaceCapabilities);
 
         uint32_t formatCount;
         vkGetPhysicalDeviceSurfaceFormatsKHR(m_VulkanPhysicalDevice, m_VulkanWindowSurface, &formatCount, nullptr);
@@ -685,20 +704,6 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
             m_PresentModes.resize(presentModeCount);
             vkGetPhysicalDeviceSurfacePresentModesKHR(m_VulkanPhysicalDevice, m_VulkanWindowSurface, &presentModeCount, m_PresentModes.data());
         }
-
-        // swapchain detail supported
-        if (m_SurfaceFormats.empty()) {
-            std::cout << "Vulkan physical device doesn't has nessecery swapchain format.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_SwapChainFormat;
-        }
-        if (m_PresentModes.empty()) {
-            std::cout << "Vulkan physical device doesn't has nessecery swapchain presentmode.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_SwapChainPresentMode;
-        }
-
-        m_VulkanSurfaceFormat = ChooseSwapSurfaceFormat(m_SurfaceFormats);
-        m_VulkanSwapPresentMode = ChooseSwapPresentMode(m_PresentModes);
-        m_VulkanSwapExtent = ChooseSwapExtent(m_SurfaceCapabilities);
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         float queuePriority = 1.0f;
@@ -733,11 +738,28 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
 
         if (vkCreateDevice(m_VulkanPhysicalDevice, &createInfo, nullptr, &m_VulkanLogicDevice) != VK_SUCCESS) {
             std::cout << "Vulkan failed to create logic device.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_LogicDevice;
+            SetErrorCode(ErrorCode::Vulkan_Invalid_LogicDevice);
+            return false;
         }
 
         vkGetDeviceQueue(m_VulkanLogicDevice, m_VulkanGraphicQueueFamilyID, 0, &m_VulkanGraphicQueue);
         vkGetDeviceQueue(m_VulkanLogicDevice, m_VulkanPresentQueueFamilyID, 0, &m_VulkanPresentQueue);
+
+
+        // swapchain detail supported
+        if (m_SurfaceFormats.empty()) {
+            std::cout << "Vulkan physical device doesn't has nessecery swapchain format.\n";
+            SetErrorCode(ErrorCode::Vulkan_Invalid_SwapChainFormat);
+            return false;
+        }
+        if (m_PresentModes.empty()) {
+            std::cout << "Vulkan physical device doesn't has nessecery swapchain presentmode.\n";
+            SetErrorCode(ErrorCode::Vulkan_Invalid_SwapChainPresentMode);
+            return false;
+        }
+
+        m_VulkanSurfaceFormat = ChooseSwapSurfaceFormat(m_SurfaceFormats);
+        m_VulkanSwapPresentMode = ChooseSwapPresentMode(m_PresentModes);
     }
 
     /****************************************************************************
@@ -751,11 +773,15 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
 
         if (vkCreateCommandPool(m_VulkanLogicDevice, &poolInfo, nullptr, &m_VulkanCommandPool) != VK_SUCCESS) {
             std::cout << "Vulkan failed to create command pool.\n";
-            return GraphicDriverErrorCode::Vulkan_Invalid_CommandPool;
+            SetErrorCode(ErrorCode::Vulkan_Invalid_CommandPool);
+            return false;
         }
     }
 
-    VULKAN_DRIVER_CHECK_FUN(CreateSwapChain());
+    uint32_t w = (uint32_t)initialInfo.m_Width;
+    uint32_t h = (uint32_t)initialInfo.m_Height;
+
+    VULKAN_DRIVER_CHECK_FUN(CreateSwapChain(w,h));
     VULKAN_DRIVER_CHECK_FUN(CreateShaderAndPipeline());
     VULKAN_DRIVER_CHECK_FUN(CreateFrameBuffers());
     VULKAN_DRIVER_CHECK_FUN(CreateCommandBuffers());
@@ -784,21 +810,35 @@ GraphicDriverErrorCode VulkanGraphicDriver::StartUp(GLFWwindow* window)
             {
 
                 std::cout << "Vulkan failed to create semaphores.";
-                return GraphicDriverErrorCode::UnKnow;
+                SetErrorCode(ErrorCode::UnKnow);
+                return false;
             }
         }
     }
 
     std::cout << "Vulkan startup success.\n";
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::DrawFrame()
+bool VulkanGraphicDriver::DrawFrame()
 {
+    if (m_SkipFrame) {
+        return true;
+    }
+
     vkWaitForFences(m_VulkanLogicDevice, 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex = 0;
-    vkAcquireNextImageKHR(m_VulkanLogicDevice, m_VulkanSwapChain, UINT64_MAX, m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(m_VulkanLogicDevice, m_VulkanSwapChain, UINT64_MAX, m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        std::cout << "Vulkan skip a frame draw because of window resize happened.\n";
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        std::cout << "Vulkan failed to acquire swap chain image.\n";
+        SetErrorCode(ErrorCode::UnKnow);
+        return false;
+    }
 
     // Check if a previous frame is using this image (i.e. there is its fence to wait on)
     if (m_InFlightImageFences[imageIndex] != VK_NULL_HANDLE) {
@@ -843,11 +883,22 @@ GraphicDriverErrorCode VulkanGraphicDriver::DrawFrame()
     vkQueueWaitIdle(m_VulkanPresentQueue);
 
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::ResizeWindow()
+bool VulkanGraphicDriver::ResizeWindow(const GraphicResizeInfo& resizeInfo)
 {
+    // When minimize window or restore window, Only skip frame rendering and don't need re-create swapchain.
+    if (0 == resizeInfo.m_NewWidth || 0 == resizeInfo.m_NewHeight) {
+        m_SkipFrame = true;
+        return true;
+    }
+
+    if (0 == resizeInfo.m_OldWidth || 0 == resizeInfo.m_OldHeight) {
+        m_SkipFrame = false;
+        return true;
+    }
+
     vkDeviceWaitIdle(m_VulkanLogicDevice);
 
     DestroyCommandBuffers();
@@ -855,24 +906,24 @@ GraphicDriverErrorCode VulkanGraphicDriver::ResizeWindow()
     DestroyShaderAndPipeline();
     DestroySwapChain();
 
-    CreateSwapChain();
+    CreateSwapChain((uint32_t)resizeInfo.m_NewWidth, (uint32_t)resizeInfo.m_NewHeight);
     CreateShaderAndPipeline();
     CreateFrameBuffers();
     CreateCommandBuffers();
 
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::DestroyCommandBuffers()
+bool VulkanGraphicDriver::DestroyCommandBuffers()
 {
     if (!m_VulkanCommandBuffers.empty()) {
         vkFreeCommandBuffers(m_VulkanLogicDevice, m_VulkanCommandPool, static_cast<uint32_t>(m_VulkanCommandBuffers.size()), m_VulkanCommandBuffers.data());
         m_VulkanCommandBuffers.clear();
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::DestroyFrameBuffers()
+bool VulkanGraphicDriver::DestroyFrameBuffers()
 {
     if (!m_VulkanSwapChainFramebuffers.empty()) {
         for (size_t i = 0; i < m_VulkanSwapChainFramebuffers.size(); i++) {
@@ -880,10 +931,10 @@ GraphicDriverErrorCode VulkanGraphicDriver::DestroyFrameBuffers()
         }
         m_VulkanSwapChainFramebuffers.clear();
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::DestroyShaderAndPipeline()
+bool VulkanGraphicDriver::DestroyShaderAndPipeline()
 {
     if (VK_NULL_HANDLE != m_VulkanRenderPass) {
         vkDestroyRenderPass(m_VulkanLogicDevice, m_VulkanRenderPass, nullptr);
@@ -899,10 +950,10 @@ GraphicDriverErrorCode VulkanGraphicDriver::DestroyShaderAndPipeline()
         vkDestroyPipelineLayout(m_VulkanLogicDevice, m_VulkanPipelineLayout, nullptr);
         m_VulkanPipelineLayout = VK_NULL_HANDLE;
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::DestroySwapChain()
+bool VulkanGraphicDriver::DestroySwapChain()
 {
     if (!m_VulkanSwapChainImageViews.empty()) {
         for (size_t i = 0; i < m_VulkanSwapChainImageViews.size(); i++) {
@@ -915,10 +966,10 @@ GraphicDriverErrorCode VulkanGraphicDriver::DestroySwapChain()
         vkDestroySwapchainKHR(m_VulkanLogicDevice, m_VulkanSwapChain, nullptr);
         m_VulkanSwapChain = VK_NULL_HANDLE;
     }
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
-GraphicDriverErrorCode VulkanGraphicDriver::ShutDown()
+bool VulkanGraphicDriver::ShutDown()
 {
     vkDeviceWaitIdle(m_VulkanLogicDevice);
 
@@ -948,7 +999,7 @@ GraphicDriverErrorCode VulkanGraphicDriver::ShutDown()
     vkDestroyInstance(m_VulkanInstance, nullptr);
     m_VulkanInstance = VK_NULL_HANDLE;
 
-    return GraphicDriverErrorCode::OK;
+    return true;
 }
 
 void VulkanGraphicDriver::CleanUp()
@@ -957,5 +1008,4 @@ void VulkanGraphicDriver::CleanUp()
 }
 
 
-
-
+__END_NAMESPACE
