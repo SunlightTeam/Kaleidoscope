@@ -715,6 +715,7 @@ bool VulkanGraphicDriver::StartUp(const GraphicInitialInfo& initialInfo)
             queueCreateInfo.pQueuePriorities = &queuePriority;
             queueCreateInfos.push_back(queueCreateInfo);
         }
+        if(m_VulkanPresentQueueFamilyID!= m_VulkanGraphicQueueFamilyID)
         {
             VkDeviceQueueCreateInfo queueCreateInfo{};
             queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
